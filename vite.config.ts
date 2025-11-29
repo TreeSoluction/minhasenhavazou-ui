@@ -6,29 +6,27 @@ import vueJsx from '@vitejs/plugin-vue-jsx'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 
-export default defineConfig(() => {
-  return {
-    plugins: [
-      vue(),
-      vueJsx(),
-      vueDevTools(),
-      tailwindcss()
-    ],
+export default defineConfig({
+  plugins: [
+    vue(),
+    vueJsx(),
+    vueDevTools(),
+    tailwindcss()
+  ],
 
-    resolve: {
-      alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url))
-      },
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url))
     },
+  },
 
-    // Allow all hosts in dev and preview (production preview)
-    server: {
-      host: true,
-      allowedHosts: true
-    },
-    preview: {
-      host: true,
-      allowedHosts: true
-    },
-  };
-});
+  server: {
+    host: true,
+    allowedHosts: true as const
+  },
+
+  preview: {
+    host: true,
+    allowedHosts: true as const
+  }
+})

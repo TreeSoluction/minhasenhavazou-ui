@@ -3,35 +3,25 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
-# Copy package files first
 COPY package.json yarn.lock ./
-
-# Install dependencies
 RUN yarn install --frozen-lockfile
 
-# Copy project files
 COPY . .
-
-# Build for production
 RUN yarn build
 
 
-# 2️⃣ Runtime stage (Node-only)
-FROM node:22-alpine
+# 2️⃣ Runtime stage (NGINX)
+FROM nginx:alpine
 
-WORKDIR /app
+# Remove default NGINX page
+RUN rm -rf /usr/share/nginx/html/*
 
-# Copy only necessary files
-COPY package.json yarn.lock ./
+# Copia os arquivos do build do Vite
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Install only production dependencies
-RUN yarn install --production --frozen-lockfile
+# Copia configuração personalizada (opcional, caso queira SPA friendly routing)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built assets
-COPY --from=build /app/dist ./dist
+EXPOSE 80
 
-# Expose port used by "vite preview"
-EXPOSE 4173
-
-# Start Vite preview server
-CMD ["yarn", "preview", "--host", "0.0.0.0"]
+CMD ["nginx", "-g", "daemon off;"]

@@ -6,17 +6,26 @@ import vueJsx from '@vitejs/plugin-vue-jsx'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [
-    vue(),
-    vueJsx(),
-    vueDevTools(),
-    tailwindcss()
-  ],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+export default defineConfig(({ mode }) => {
+  const isProd = mode === "production";
+
+  return {
+    plugins: [
+      vue(),
+      vueJsx(),
+      vueDevTools(),
+      tailwindcss()
+    ],
+
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url))
+      },
     },
-  },
-})
+
+    preview: {
+      host: true,
+      allowedHosts: isProd ? true : [],   // allow all hosts in production
+    },
+  };
+});

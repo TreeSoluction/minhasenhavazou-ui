@@ -6,9 +6,7 @@ import vueJsx from '@vitejs/plugin-vue-jsx'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 
-export default defineConfig(({ mode }) => {
-  const isProd = mode === "production";
-
+export default defineConfig(() => {
   return {
     plugins: [
       vue(),
@@ -23,9 +21,14 @@ export default defineConfig(({ mode }) => {
       },
     },
 
+    // Allow all hosts in dev and preview (production preview)
+    server: {
+      host: true,
+      allowedHosts: true
+    },
     preview: {
       host: true,
-      allowedHosts: isProd ? true : [],   // allow all hosts in production
+      allowedHosts: true
     },
   };
 });

@@ -5,7 +5,7 @@ const MAX_PASSWORD_LENGTH = 1024
 const REQUEST_TIMEOUT = 10000
 const DEBOUNCE_DELAY = 500
 const MIN_REQUEST_INTERVAL = 5000
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_URL = import.meta.env.VITE_API_URL || 'https://minhasenhavazouapi.soluctiontree.com'
 
 const password = ref('')
 const breachResult = ref<{ pwned: boolean; count: number } | null>(null)
@@ -18,11 +18,11 @@ let abortController: AbortController | null = null
 
 const sanitizeInput = (input: string): string => {
   let sanitized = input.trim()
-  
+
   if (sanitized.length > MAX_PASSWORD_LENGTH) {
     sanitized = sanitized.substring(0, MAX_PASSWORD_LENGTH)
   }
-  
+
   return sanitized
 }
 
@@ -55,7 +55,7 @@ const checkPassword = async () => {
   }
 
   const sanitizedPassword = sanitizeInput(password.value)
-  
+
   if (!sanitizedPassword) {
     error.value = 'Por favor, insira uma senha válida.'
     return
@@ -87,7 +87,7 @@ const checkPassword = async () => {
 
     if (response.ok) {
       const data = await response.json()
-      
+
       if (typeof data.pwned === 'boolean' && typeof data.count === 'number') {
         breachResult.value = data
       } else {
@@ -100,7 +100,7 @@ const checkPassword = async () => {
     }
   } catch (err) {
     clearTimeout(timeoutId)
-    
+
     if (err instanceof Error) {
       if (err.name === 'AbortError') {
         error.value = 'A requisição demorou muito. Tente novamente.'
@@ -163,9 +163,15 @@ const checkPassword = async () => {
 
         <!-- Results -->
         <div v-if="breachResult" class="mt-6 p-4 rounded-xl text-center animate-fade-in">
-          <div v-if="breachResult.pwned" class="text-red-600 bg-red-50 border border-red-200 p-4 rounded-lg">
+          <div
+            v-if="breachResult.pwned"
+            class="text-red-600 bg-red-50 border border-red-200 p-4 rounded-lg"
+          >
             <p class="text-xl font-bold mb-2">⚠️ Atenção!</p>
-            <p>Esta senha apareceu em <strong>{{ breachResult.count.toLocaleString() }}</strong> vazamentos de dados.</p>
+            <p>
+              Esta senha apareceu em
+              <strong>{{ breachResult.count.toLocaleString() }}</strong> vazamentos de dados.
+            </p>
             <p class="mt-2 text-sm">Recomendamos não utilizar esta senha.</p>
           </div>
           <div v-else class="text-green-700 bg-green-50 border border-green-200 p-4 rounded-lg">

@@ -1,10 +1,129 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const MAX_PASSWORD_LENGTH = 1024
+const REQUEST_TIMEOUT = 10000
+const DEBOUNCE_DELAY = 500
+const MIN_REQUEST_INTERVAL = 5000
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+
+const password = ref('')
+const breachResult = ref<{ pwned: boolean; count: number } | null>(null)
+const loading = ref(false)
+const error = ref<string | null>(null)
+
+let lastRequestTime = 0
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let abortController: AbortController | null = null
+
+const sanitizeInput = (input: string): string => {
+  let sanitized = input.trim()
+  
+  if (sanitized.length > MAX_PASSWORD_LENGTH) {
+    sanitized = sanitized.substring(0, MAX_PASSWORD_LENGTH)
+  }
+  
+  return sanitized
+}
+
+const canMakeRequest = (): boolean => {
+  const now = Date.now()
+  const timeSinceLastRequest = now - lastRequestTime
+  return timeSinceLastRequest >= MIN_REQUEST_INTERVAL
+}
+
+const checkPasswordDebounced = () => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+  }
+
+  debounceTimer = setTimeout(() => {
+    checkPassword()
+  }, DEBOUNCE_DELAY)
+}
+
+const checkPassword = async () => {
+  if (!password.value) {
+    error.value = null
+    breachResult.value = null
+    return
+  }
+
+  if (!canMakeRequest()) {
+    error.value = 'Por favor, aguarde antes de fazer outra verificação.'
+    return
+  }
+
+  const sanitizedPassword = sanitizeInput(password.value)
+  
+  if (!sanitizedPassword) {
+    error.value = 'Por favor, insira uma senha válida.'
+    return
+  }
+
+  if (abortController) {
+    abortController.abort()
+  }
+
+  abortController = new AbortController()
+  const timeoutId = setTimeout(() => abortController?.abort(), REQUEST_TIMEOUT)
+
+  loading.value = true
+  breachResult.value = null
+  error.value = null
+  lastRequestTime = Date.now()
+
+  try {
+    const response = await fetch(`${API_URL}/hibp/password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ password: sanitizedPassword }),
+      signal: abortController.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (response.ok) {
+      const data = await response.json()
+      
+      if (typeof data.pwned === 'boolean' && typeof data.count === 'number') {
+        breachResult.value = data
+      } else {
+        throw new Error('Invalid response format')
+      }
+    } else if (response.status === 429) {
+      error.value = 'Muitas requisições. Por favor, tente novamente mais tarde.'
+    } else {
+      error.value = 'Erro ao verificar a senha. Tente novamente.'
+    }
+  } catch (err) {
+    clearTimeout(timeoutId)
+    
+    if (err instanceof Error) {
+      if (err.name === 'AbortError') {
+        error.value = 'A requisição demorou muito. Tente novamente.'
+      } else {
+        error.value = 'Erro de conexão. Verifique se o servidor está rodando.'
+      }
+    } else {
+      error.value = 'Erro desconhecido. Tente novamente.'
+    }
+  } finally {
+    loading.value = false
+    abortController = null
+  }
+}
+</script>
+
 <template>
   <div class="min-h-screen bg-gray-50 flex flex-col items-center">
     <header
       class="w-full bg-linear-to-r from-green-600 to-green-700 px-6 sm:px-10 py-6 flex justify-start items-center shadow-2xl shadow-green-800/40"
     >
       <h1
-        class="text-4xl sm:text-5xl font-extrabold text-white tracking-wider animate-fade-in-down"
+        class="text-4xl sm:text-5xl font-extrabold text-white tracking-wider animate-fade-in-down title-font"
       >
         Minha Senha Vazou?
       </h1>
@@ -20,16 +139,40 @@
         </div>
 
         <input
+          v-model="password"
           type="text"
           placeholder="Digite seu email ou senha..."
           class="w-full px-5 py-4 rounded-xl border-2 border-green-300 bg-white text-gray-800 text-lg sm:text-xl transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-green-100 focus:border-green-600 shadow-inner hover:border-green-400"
+          @keyup.enter="checkPassword"
         />
 
         <button
-          class="mt-6 w-full px-8 py-4 bg-green-600 text-white rounded-xl text-xl sm:text-2xl font-bold tracking-wide hover:bg-green-700 hover:shadow-green-900/40 active:scale-[0.98] transition-all duration-300 shadow-lg shadow-green-900/30 transform hover:-translate-y-0.5"
+          @click="checkPassword"
+          :disabled="loading"
+          class="mt-6 w-full px-8 py-4 bg-green-600 text-white rounded-xl text-xl sm:text-2xl font-bold tracking-wide hover:bg-green-700 hover:shadow-green-900/40 active:scale-[0.98] transition-all duration-300 shadow-lg shadow-green-900/30 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          Verificar
+          {{ loading ? 'Verificando...' : 'Verificar' }}
         </button>
+
+        <!-- Error message -->
+        <div v-if="error" class="mt-4 p-4 rounded-xl text-center animate-fade-in">
+          <div class="text-orange-600 bg-orange-50 border border-orange-200 p-4 rounded-lg">
+            <p class="text-lg font-semibold">{{ error }}</p>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div v-if="breachResult" class="mt-6 p-4 rounded-xl text-center animate-fade-in">
+          <div v-if="breachResult.pwned" class="text-red-600 bg-red-50 border border-red-200 p-4 rounded-lg">
+            <p class="text-xl font-bold mb-2">⚠️ Atenção!</p>
+            <p>Esta senha apareceu em <strong>{{ breachResult.count.toLocaleString() }}</strong> vazamentos de dados.</p>
+            <p class="mt-2 text-sm">Recomendamos não utilizar esta senha.</p>
+          </div>
+          <div v-else class="text-green-700 bg-green-50 border border-green-200 p-4 rounded-lg">
+            <p class="text-xl font-bold mb-2">✅ Boas notícias!</p>
+            <p>Esta senha não foi encontrada em nenhum vazamento de dados conhecido.</p>
+          </div>
+        </div>
       </div>
     </main>
 
@@ -97,11 +240,9 @@
   </div>
 </template>
 
-<script setup lang="ts"></script>
-
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Shadows+Into+Light&display=swap');
-div {
+.title-font {
   font-family: 'Shadows Into Light', cursive;
 }
 
